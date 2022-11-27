@@ -38,7 +38,7 @@ public abstract class DirectBlockEntityTickInvokerMixin implements WorldBorderLi
         if (this.isInsideWorldBorder()) {
             World world = this.worldChunk.getWorld();
             if (world instanceof ServerWorld serverWorld) {
-                return this.worldChunk.getLevelType().isAfter(ChunkHolder.LevelType.TICKING) && serverWorld.isChunkLoaded(ChunkPos.toLong(pos));
+                return this.worldChunk.getLevelType().isAfter(ChunkHolder.LevelType.TICKING) && serverWorld.isChunkLoaded(pos);
             }
             return true;
         } else {

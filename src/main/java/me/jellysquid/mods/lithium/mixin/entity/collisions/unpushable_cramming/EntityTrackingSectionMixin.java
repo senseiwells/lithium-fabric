@@ -112,8 +112,8 @@ public abstract class EntityTrackingSectionMixin<T extends EntityLike> implement
     }
 
 
-    @Inject(method = "add(Lnet/minecraft/world/entity/EntityLike;)V", at = @At("RETURN"))
-    private void onEntityAdded(T entityLike, CallbackInfo ci) {
+    @Inject(method = "add", at = @At("RETURN"))
+    private void onEntityAdded(Object entityLike, CallbackInfo ci) {
         if (this.pushableEntities != null) {
             if (!this.status.shouldTrack()) {
                 this.stopFilteringPushableEntities();
@@ -128,8 +128,8 @@ public abstract class EntityTrackingSectionMixin<T extends EntityLike> implement
         }
     }
 
-    @Inject(method = "remove(Lnet/minecraft/world/entity/EntityLike;)Z", at = @At("RETURN"))
-    private void onEntityRemoved(T entityLike, CallbackInfoReturnable<Boolean> cir) {
+    @Inject(method = "remove", at = @At("RETURN"))
+    private void onEntityRemoved(Object entityLike, CallbackInfoReturnable<Boolean> cir) {
         if (this.pushableEntities != null) {
             if (!this.status.shouldTrack()) {
                 this.stopFilteringPushableEntities();

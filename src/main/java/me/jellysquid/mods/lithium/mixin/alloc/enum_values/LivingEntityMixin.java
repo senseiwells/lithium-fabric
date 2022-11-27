@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 public class LivingEntityMixin {
 
     @Redirect(
-            method = "getEquipmentChanges()Ljava/util/Map;",
+            method = "getEquipment",
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/entity/EquipmentSlot;values()[Lnet/minecraft/entity/EquipmentSlot;"

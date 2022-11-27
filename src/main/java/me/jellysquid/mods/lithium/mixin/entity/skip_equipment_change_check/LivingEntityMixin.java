@@ -39,7 +39,7 @@ public abstract class LivingEntityMixin extends Entity implements EquipmentEntit
     }
 
     @Inject(
-            method = "getEquipmentChanges()Ljava/util/Map;",
+            method = "getEquipment",
             at = @At("HEAD"),
             cancellable = true
     )
@@ -50,10 +50,10 @@ public abstract class LivingEntityMixin extends Entity implements EquipmentEntit
     }
 
     @Inject(
-            method = "sendEquipmentChanges()V",
+            method = "method_30128",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/entity/LivingEntity;checkHandStackSwap(Ljava/util/Map;)V"
+                    target = "Lnet/minecraft/entity/LivingEntity;swapHandStacks(Ljava/util/Map;)V"
             )
     )
     private void resetEquipmentChanged(CallbackInfo ci) {

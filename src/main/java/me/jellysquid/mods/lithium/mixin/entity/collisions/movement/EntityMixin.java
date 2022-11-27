@@ -2,117 +2,94 @@ package me.jellysquid.mods.lithium.mixin.entity.collisions.movement;
 
 import me.jellysquid.mods.lithium.common.entity.LithiumEntityCollisions;
 import net.minecraft.entity.Entity;
+import net.minecraft.util.function.BooleanBiFunction;
 import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.util.shape.VoxelShapes;
 import net.minecraft.world.World;
-import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.stream.Stream;
 
+/**
+ * Replaces collision testing methods against the world border with faster checks.
+ */
 @Mixin(Entity.class)
-public class EntityMixin {
-    private static final List<VoxelShape> GET_ENTITIES_LATER = Collections.unmodifiableList(new ArrayList<>());
+public abstract class EntityMixin {
+    @Shadow
+    public World world;
 
+    @Shadow
+    public abstract Box getBoundingBox();
+
+    /**
+     * Skips the matchesAnywhere evaluation, which is replaced with {@link EntityMixin#fastWorldBorderTest(Stream, Stream, Vec3d)}.
+     */
     @Redirect(
             method = "adjustMovementForCollisions(Lnet/minecraft/util/math/Vec3d;)Lnet/minecraft/util/math/Vec3d;",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/world/World;getEntityCollisions(Lnet/minecraft/entity/Entity;Lnet/minecraft/util/math/Box;)Ljava/util/List;"
+                    target = "Lnet/minecraft/util/shape/VoxelShapes;matchesAnywhere(Lnet/minecraft/util/shape/VoxelShape;Lnet/minecraft/util/shape/VoxelShape;Lnet/minecraft/util/function/BooleanBiFunction;)Z"
             )
     )
-    private List<VoxelShape> getEntitiesLater(World world, Entity entity, Box box) {
-        return GET_ENTITIES_LATER;
+    private boolean skipWorldBorderMatchesAnywhere(VoxelShape borderShape, VoxelShape entityShape, BooleanBiFunction func, Vec3d motion) {
+        return false;
     }
 
     /**
-     * @author 2No2Name
-     * @reason Replace with optimized implementation
+     * Skip creation of unused cuboid shape
      */
-    @Overwrite
-    public static Vec3d adjustMovementForCollisions(@Nullable Entity entity, Vec3d movement, Box entityBoundingBox, World world, List<VoxelShape> collisions) {
-        return lithiumCollideMultiAxisMovement(entity, movement, entityBoundingBox, world, collisions == GET_ENTITIES_LATER);
+    @Redirect(
+            method = "adjustMovementForCollisions(Lnet/minecraft/util/math/Vec3d;)Lnet/minecraft/util/math/Vec3d;",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/util/shape/VoxelShapes;cuboid(Lnet/minecraft/util/math/Box;)Lnet/minecraft/util/shape/VoxelShape;",
+                    ordinal = 0
+            )
+    )
+    private VoxelShape skipCuboid(Box box) {
+        return null;
     }
 
-    private static Vec3d lithiumCollideMultiAxisMovement(@Nullable Entity entity, Vec3d movement, Box entityBoundingBox, World world, boolean getEntityCollisions) {
-        //vanilla order: entities, worldborder, blocks. It is unknown whether changing this order changes the result regarding the confusing 1e-7 VoxelShape margin behavior. Not yet investigated
-        double velX = movement.x;
-        double velY = movement.y;
-        double velZ = movement.z;
-        boolean isVerticalOnly = velX == 0 && velZ == 0;
-        Box movementSpace;
-        if (isVerticalOnly) {
-            if (velY < 0) {
-                movementSpace = new Box(entityBoundingBox.minX, entityBoundingBox.minY + velY, entityBoundingBox.minZ, entityBoundingBox.maxX, entityBoundingBox.minY, entityBoundingBox.maxZ);
-            } else {
-                movementSpace = new Box(entityBoundingBox.minX, entityBoundingBox.maxY, entityBoundingBox.minZ, entityBoundingBox.maxX, entityBoundingBox.maxY + velY, entityBoundingBox.maxZ);
-            }
-        } else {
-            movementSpace = entityBoundingBox.stretch(movement);
-        }
+    /**
+     * Skip creation of unused stream
+     */
+    @Redirect(
+            method = "adjustMovementForCollisions(Lnet/minecraft/util/math/Vec3d;)Lnet/minecraft/util/math/Vec3d;",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Ljava/util/stream/Stream;empty()Ljava/util/stream/Stream;",
+                    ordinal = 0
+            )
+    )
+    private Stream<VoxelShape> skipStream() {
+        return null;
+    }
 
-        List<VoxelShape> blockCollisions = LithiumEntityCollisions.getBlockCollisions(world, entity, movementSpace);
-        List<VoxelShape> entityWorldBorderCollisions = null;
-
-        if (velY != 0.0) {
-            velY = VoxelShapes.calculateMaxOffset(Direction.Axis.Y, entityBoundingBox, blockCollisions, velY);
-            if (velY != 0.0) {
-                if (getEntityCollisions) {
-                    entityWorldBorderCollisions = LithiumEntityCollisions.getEntityWorldBorderCollisions(world, entity, movementSpace, entity != null);
-                    velY = VoxelShapes.calculateMaxOffset(Direction.Axis.Y, entityBoundingBox, entityWorldBorderCollisions, velY);
-                }
-                if (velY != 0.0) {
-                    entityBoundingBox = entityBoundingBox.offset(0.0, velY, 0.0);
-                }
-            }
+    /**
+     * Uses a very quick check to determine if the player is outside the world border (which would disable collisions
+     * against it). We also perform an additional check to see if the player can even collide with the world border in
+     * this physics step, allowing us to remove it from collision testing in later code.
+     *
+     * @return The combined entity shapes and worldborder stream, or if the worldborder cannot be collided with the entity stream will be returned.
+     */
+    @Redirect(
+            method = "adjustMovementForCollisions(Lnet/minecraft/util/math/Vec3d;)Lnet/minecraft/util/math/Vec3d;",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Ljava/util/stream/Stream;concat(Ljava/util/stream/Stream;Ljava/util/stream/Stream;)Ljava/util/stream/Stream;"
+            )
+    )
+    private Stream<VoxelShape> fastWorldBorderTest(Stream<VoxelShape> entityShapes, Stream<VoxelShape> emptyStream, Vec3d motion) {
+        if (LithiumEntityCollisions.isWithinWorldBorder(this.world.getWorldBorder(), this.getBoundingBox().stretch(motion)) ||
+                !LithiumEntityCollisions.isWithinWorldBorder(this.world.getWorldBorder(), this.getBoundingBox().contract(1.0E-7D))) {
+            return entityShapes;
         }
-        boolean velXSmallerVelZ = Math.abs(velX) < Math.abs(velZ);
-        if (velXSmallerVelZ) {
-            velZ = VoxelShapes.calculateMaxOffset(Direction.Axis.Z, entityBoundingBox, blockCollisions, velZ);
-            if (velZ != 0.0) {
-                if (entityWorldBorderCollisions == null && getEntityCollisions) {
-                    entityWorldBorderCollisions = LithiumEntityCollisions.getEntityWorldBorderCollisions(world, entity, movementSpace, entity != null);
-                }
-                if (getEntityCollisions) {
-                    velZ = VoxelShapes.calculateMaxOffset(Direction.Axis.Z, entityBoundingBox, entityWorldBorderCollisions, velZ);
-                }
-                if (velZ != 0.0) {
-                    entityBoundingBox = entityBoundingBox.offset(0.0, 0.0, velZ);
-                }
-            }
-        }
-        if (velX != 0.0) {
-            velX = VoxelShapes.calculateMaxOffset(Direction.Axis.X, entityBoundingBox, blockCollisions, velX);
-            if (velX != 0.0) {
-                if (entityWorldBorderCollisions == null && getEntityCollisions) {
-                    entityWorldBorderCollisions = LithiumEntityCollisions.getEntityWorldBorderCollisions(world, entity, movementSpace, entity != null);
-                }
-                if (getEntityCollisions) {
-                    velX = VoxelShapes.calculateMaxOffset(Direction.Axis.X, entityBoundingBox, entityWorldBorderCollisions, velX);
-                }
-                if (velX != 0.0) {
-                    entityBoundingBox = entityBoundingBox.offset(velX, 0.0, 0.0);
-                }
-            }
-        }
-        if (!velXSmallerVelZ && velZ != 0.0) {
-            velZ = VoxelShapes.calculateMaxOffset(Direction.Axis.Z, entityBoundingBox, blockCollisions, velZ);
-            if (velZ != 0.0 && getEntityCollisions) {
-                if (entityWorldBorderCollisions == null) {
-                    entityWorldBorderCollisions = LithiumEntityCollisions.getEntityWorldBorderCollisions(world, entity, movementSpace, entity != null);
-                }
-
-                velZ = VoxelShapes.calculateMaxOffset(Direction.Axis.Z, entityBoundingBox, entityWorldBorderCollisions, velZ);
-            }
-        }
-        return new Vec3d(velX, velY, velZ);
+        //the world border shape will only be collided with, if the entity is colliding with the world border after movement but is not
+        //colliding with the world border already
+        return Stream.concat(entityShapes, Stream.of(this.world.getWorldBorder().asVoxelShape()));
     }
 }

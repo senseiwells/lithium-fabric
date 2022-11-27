@@ -1,89 +1,87 @@
 package me.jellysquid.mods.lithium.mixin.chunk.palette;
 
 import me.jellysquid.mods.lithium.common.world.chunk.LithiumHashPalette;
-import net.minecraft.util.collection.IndexedIterable;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.util.collection.IdList;
+import net.minecraft.util.collection.PackedIntegerArray;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.world.chunk.ArrayPalette;
 import net.minecraft.world.chunk.Palette;
+import net.minecraft.world.chunk.PaletteResizeListener;
 import net.minecraft.world.chunk.PalettedContainer;
-import org.spongepowered.asm.mixin.*;
+import org.spongepowered.asm.mixin.Final;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Shadow;
 
-import static net.minecraft.world.chunk.PalettedContainer.PaletteProvider.ARRAY;
-import static net.minecraft.world.chunk.PalettedContainer.PaletteProvider.SINGULAR;
+import java.util.function.Function;
 
-@Mixin(PalettedContainer.PaletteProvider.class)
-public abstract class PalettedContainerMixin {
-    @Mutable
+/**
+ * Patches {@link PalettedContainer} to make use of {@link LithiumHashPalette}.
+ */
+@Mixin(value = PalettedContainer.class, priority = 999)
+public abstract class PalettedContainerMixin<T> {
+    @Shadow
+    private Palette<T> palette;
+
+    @Shadow
+    protected PackedIntegerArray data;
+
+    @Shadow
+    protected abstract void set(int int_1, T object_1);
+
+    @Shadow
+    private int paletteSize;
+
     @Shadow
     @Final
-    public static PalettedContainer.PaletteProvider BLOCK_STATE;
+    private Function<NbtCompound, T> elementDeserializer;
 
-    @Unique
-    private static final PalettedContainer.DataProvider<?>[] BLOCKSTATE_DATA_PROVIDERS;
-    @Unique
-    private static final PalettedContainer.DataProvider<?>[] BIOME_DATA_PROVIDERS;
-
-
-    @Unique
-    private static final Palette.Factory HASH = LithiumHashPalette::create;
-    @Mutable
     @Shadow
     @Final
-    public static PalettedContainer.PaletteProvider BIOME;
+    private Function<T, NbtCompound> elementSerializer;
+
     @Shadow
     @Final
-    static Palette.Factory ID_LIST;
+    private IdList<T> idList;
 
-    /*
+    @Shadow
+    @Final
+    private Palette<T> fallbackPalette;
+
+    @Shadow
+    @Final
+    private T defaultValue;
+
+    @Shadow
+    protected abstract T get(int int_1);
+
+    /**
+     * TODO: Replace this with something that doesn't overwrite.
+     *
      * @reason Replace the hash palette from vanilla with our own and change the threshold for usage to only 3 bits,
      * as our implementation performs better at smaller key ranges.
-     * @author JellySquid, 2No2Name (avoid DataProvider duplication, use hash palette for 3 bit biomes)
+     * @author JellySquid
      */
-    static {
-        Palette.Factory idListFactory = ID_LIST;
+    @SuppressWarnings({"unchecked", "ConstantConditions"})
+    @Overwrite
+    private void setPaletteSize(int size) {
+        if (size != this.paletteSize) {
+            this.paletteSize = size;
 
-        PalettedContainer.DataProvider<?> arrayDataProvider4bit = new PalettedContainer.DataProvider<>(ARRAY, 4);
-        PalettedContainer.DataProvider<?> hashDataProvider4bit = new PalettedContainer.DataProvider<>(HASH, 4);
-        BLOCKSTATE_DATA_PROVIDERS = new PalettedContainer.DataProvider<?>[]{
-                new PalettedContainer.DataProvider<>(SINGULAR, 0),
-                // Bits 1-4 must all pass 4 bits as parameter, otherwise chunk sections will corrupt.
-                arrayDataProvider4bit,
-                arrayDataProvider4bit,
-                hashDataProvider4bit,
-                hashDataProvider4bit,
-                new PalettedContainer.DataProvider<>(HASH, 5),
-                new PalettedContainer.DataProvider<>(HASH, 6),
-                new PalettedContainer.DataProvider<>(HASH, 7),
-                new PalettedContainer.DataProvider<>(HASH, 8)
-        };
-
-        BLOCK_STATE = new PalettedContainer.PaletteProvider(4) {
-            @Override
-            public <A> PalettedContainer.DataProvider<A> createDataProvider(IndexedIterable<A> idList, int bits) {
-                if (bits >= 0 && bits < BLOCKSTATE_DATA_PROVIDERS.length) {
-                    //noinspection unchecked
-                    return (PalettedContainer.DataProvider<A>) BLOCKSTATE_DATA_PROVIDERS[bits];
-                }
-                return new PalettedContainer.DataProvider<>(idListFactory, MathHelper.ceilLog2(idList.size()));
+            if (this.paletteSize <= 2) {
+                this.paletteSize = 2;
+                this.palette = new ArrayPalette<>(this.idList, this.paletteSize, (PalettedContainer<T>) (Object) this, this.elementDeserializer);
+            } else if (this.paletteSize <= 8) {
+                this.palette = new LithiumHashPalette<>(this.idList, this.paletteSize, (PaletteResizeListener<T>) this, this.elementDeserializer, this.elementSerializer);
+            } else {
+                this.paletteSize = MathHelper.log2DeBruijn(this.idList.size());
+                this.palette = this.fallbackPalette;
             }
-        };
 
-        BIOME_DATA_PROVIDERS = new PalettedContainer.DataProvider<?>[]{
-                new PalettedContainer.DataProvider<>(SINGULAR, 0),
-                new PalettedContainer.DataProvider<>(ARRAY, 1),
-                new PalettedContainer.DataProvider<>(ARRAY, 2),
-                new PalettedContainer.DataProvider<>(HASH, 3)
-        };
-
-
-        BIOME = new PalettedContainer.PaletteProvider(2) {
-            @Override
-            public <A> PalettedContainer.DataProvider<A> createDataProvider(IndexedIterable<A> idList, int bits) {
-                if (bits >= 0 && bits < BIOME_DATA_PROVIDERS.length) {
-                    //noinspection unchecked
-                    return (PalettedContainer.DataProvider<A>) BIOME_DATA_PROVIDERS[bits];
-                }
-                return new PalettedContainer.DataProvider<>(idListFactory, MathHelper.ceilLog2(idList.size()));
-            }
-        };
+            this.palette.getIndex(this.defaultValue);
+            this.data = new PackedIntegerArray(this.paletteSize, 4096);
+        }
     }
+
 }

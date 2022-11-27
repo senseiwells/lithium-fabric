@@ -6,6 +6,7 @@ import me.jellysquid.mods.lithium.common.world.WorldHelper;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.function.BooleanBiFunction;
 import net.minecraft.util.math.Box;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.shape.VoxelShape;
 import net.minecraft.util.shape.VoxelShapes;
 import net.minecraft.world.CollisionView;
@@ -180,6 +181,17 @@ public class LithiumEntityCollisions {
     public static VoxelShape getWorldBorderCollision(CollisionView collisionView, Entity entity) {
         Box box = entity.getBoundingBox();
         WorldBorder worldBorder = collisionView.getWorldBorder();
-        return worldBorder.canCollide(entity, box) ? worldBorder.asVoxelShape() : null;
+
+        return canCollideWorldBorder(worldBorder, entity, box) ? worldBorder.asVoxelShape() : null;
+    }
+
+    private static boolean canCollideWorldBorder(WorldBorder border, Entity entity, Box box) {
+        double d = Math.max(MathHelper.absMax(box.getXLength(), box.getZLength()), 1.0);
+        return border.getDistanceInsideBorder(entity) < d * 2.0 && entityInWorldBorder(border, entity, d);
+    }
+
+    private static boolean entityInWorldBorder(WorldBorder border, Entity entity, double margin) {
+        double x = entity.getX(), z = entity.getZ();
+        return x > border.getBoundWest() - margin && x < border.getBoundEast() + margin && z > border.getBoundNorth() - margin && z < border.getBoundSouth() + margin;
     }
 }

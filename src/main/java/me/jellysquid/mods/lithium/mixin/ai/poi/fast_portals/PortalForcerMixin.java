@@ -10,7 +10,6 @@ import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.BlockLocating;
 import net.minecraft.world.PortalForcer;
-import net.minecraft.world.border.WorldBorder;
 import net.minecraft.world.poi.PointOfInterest;
 import net.minecraft.world.poi.PointOfInterestStorage;
 import net.minecraft.world.poi.PointOfInterestType;
@@ -33,7 +32,7 @@ public class PortalForcerMixin {
      * [VanillaCopy] everything but the Optional<PointOfInterest> lookup
      */
     @Overwrite
-    public Optional<BlockLocating.Rectangle> getPortalRect(BlockPos centerPos, boolean dstIsNether, WorldBorder worldBorder) {
+    public Optional<BlockLocating.Rectangle> getPortalRect(BlockPos centerPos, boolean dstIsNether) {
         int searchRadius = dstIsNether ? 16 : 128;
 
         PointOfInterestStorage poiStorage = this.world.getPointOfInterestStorage();
@@ -42,7 +41,7 @@ public class PortalForcerMixin {
         Optional<PointOfInterest> ret = ((PointOfInterestStorageExtended) poiStorage).findNearestForPortalLogic(centerPos, searchRadius,
                 PointOfInterestType.NETHER_PORTAL, PointOfInterestStorage.OccupationStatus.ANY,
                 (poi) -> this.world.getBlockState(poi.getPos()).contains(Properties.HORIZONTAL_AXIS),
-                worldBorder
+                this.world.getWorldBorder()
         );
 
         return ret.map(poi -> {

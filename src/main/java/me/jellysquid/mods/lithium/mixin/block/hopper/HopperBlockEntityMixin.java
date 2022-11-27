@@ -189,7 +189,7 @@ public abstract class HopperBlockEntityMixin extends BlockEntity implements Hopp
                             if (receivingHopper.lastTickTime >= hopperBlockEntity.lastTickTime) {
                                 k = 7;
                             }
-                            receivingHopper.setTransferCooldown(k);
+                            receivingHopper.setCooldown(k);
                         }
                         insertInventory.markDirty();
                         cir.setReturnValue(true);
@@ -296,7 +296,7 @@ public abstract class HopperBlockEntityMixin extends BlockEntity implements Hopp
     }
 
     @Shadow
-    protected abstract void setTransferCooldown(int cooldown);
+    protected abstract void setCooldown(int cooldown);
 
     @Shadow
     protected abstract boolean needsCooldown();

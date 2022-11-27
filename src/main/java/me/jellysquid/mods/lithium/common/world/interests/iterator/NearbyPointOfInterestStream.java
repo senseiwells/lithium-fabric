@@ -146,9 +146,8 @@ public class NearbyPointOfInterestStream extends Spliterators.AbstractSpliterato
         // Sort all the chunks by their distance to the search origin. The points in each chunk are sorted independently
         // in their own bucket (the chunk itself), but this does not change the ordering of points between each bucket.
         chunkPositions.sort(
-                (long c1, long c2) -> Double.compare(
-                        Distances.getMinChunkToBlockDistanceL2Sq(origin, ChunkPos.getPackedX(c1), ChunkPos.getPackedZ(c1)),
-                        Distances.getMinChunkToBlockDistanceL2Sq(origin, ChunkPos.getPackedX(c2), ChunkPos.getPackedZ(c2))));
+                Comparator.comparingDouble((Long c) -> Distances.getMinChunkToBlockDistanceL2Sq(origin, ChunkPos.getPackedX(c), ChunkPos.getPackedZ(c)))
+        );
 
         return chunkPositions;
     }

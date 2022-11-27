@@ -1,57 +1,45 @@
 package me.jellysquid.mods.lithium.common.world.chunk;
 
-import com.google.common.collect.ImmutableList;
 import it.unimi.dsi.fastutil.HashCommon;
 import it.unimi.dsi.fastutil.objects.Reference2IntMap;
 import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtList;
 import net.minecraft.network.PacketByteBuf;
-import net.minecraft.util.collection.IndexedIterable;
+import net.minecraft.util.collection.IdList;
 import net.minecraft.world.chunk.Palette;
 import net.minecraft.world.chunk.PaletteResizeListener;
 
 import java.util.Arrays;
-import java.util.List;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static it.unimi.dsi.fastutil.Hash.FAST_LOAD_FACTOR;
 
 /**
  * Generally provides better performance over the vanilla {@link net.minecraft.world.chunk.BiMapPalette} when calling
- * {@link LithiumHashPalette#index(Object)} through using a faster backing map and reducing pointer chasing.
+ * {@link LithiumHashPalette#getIndex(Object)} through using a faster backing map and reducing pointer chasing.
  */
 public class LithiumHashPalette<T> implements Palette<T> {
     private static final int ABSENT_VALUE = -1;
 
-    private final IndexedIterable<T> idList;
+    private final IdList<T> idList;
     private final PaletteResizeListener<T> resizeHandler;
+    private final Function<NbtCompound, T> elementDeserializer;
+    private final Function<T, NbtCompound> elementSerializer;
     private final int indexBits;
 
     private final Reference2IntMap<T> table;
     private T[] entries;
     private int size = 0;
 
-    public LithiumHashPalette(IndexedIterable<T> idList, PaletteResizeListener<T> resizeHandler, int indexBits, T[] entries, Reference2IntMap<T> table, int size) {
-        this.idList = idList;
-        this.resizeHandler = resizeHandler;
-        this.indexBits = indexBits;
-        this.entries = entries;
-        this.table = table;
-        this.size = size;
-    }
-
-    public LithiumHashPalette(IndexedIterable<T> idList, int bits, PaletteResizeListener<T> resizeHandler, List<T> list) {
-        this(idList, bits, resizeHandler);
-
-        for (T t : list) {
-            this.addEntry(t);
-        }
-    }
-
     @SuppressWarnings("unchecked")
-    public LithiumHashPalette(IndexedIterable<T> idList, int bits, PaletteResizeListener<T> resizeHandler) {
-        this.idList = idList;
+    public LithiumHashPalette(IdList<T> ids, int bits, PaletteResizeListener<T> resizeHandler, Function<NbtCompound, T> deserializer, Function<T, NbtCompound> serializer) {
+        this.idList = ids;
         this.indexBits = bits;
         this.resizeHandler = resizeHandler;
+        this.elementDeserializer = deserializer;
+        this.elementSerializer = serializer;
 
         int capacity = 1 << bits;
 
@@ -61,7 +49,7 @@ public class LithiumHashPalette<T> implements Palette<T> {
     }
 
     @Override
-    public int index(T obj) {
+    public int getIndex(T obj) {
         int id = this.table.getInt(obj);
 
         if (id == ABSENT_VALUE) {
@@ -69,17 +57,6 @@ public class LithiumHashPalette<T> implements Palette<T> {
         }
 
         return id;
-    }
-
-    @Override
-    public boolean hasAny(Predicate<T> predicate) {
-        for (int i = 0; i < this.size; ++i) {
-            if (predicate.test(this.entries[i])) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private int computeEntry(T obj) {
@@ -116,7 +93,18 @@ public class LithiumHashPalette<T> implements Palette<T> {
     }
 
     @Override
-    public T get(int id) {
+    public boolean accepts(Predicate<T> predicate) {
+        for (int i = 0; i < this.size; ++i) {
+            if (predicate.test(this.entries[i])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    @Override
+    public T getByIndex(int id) {
         T[] entries = this.entries;
 
         if (id >= 0 && id < entries.length) {
@@ -127,7 +115,7 @@ public class LithiumHashPalette<T> implements Palette<T> {
     }
 
     @Override
-    public void readPacket(PacketByteBuf buf) {
+    public void fromPacket(PacketByteBuf buf) {
         this.clear();
 
         int entryCount = buf.readVarInt();
@@ -138,12 +126,12 @@ public class LithiumHashPalette<T> implements Palette<T> {
     }
 
     @Override
-    public void writePacket(PacketByteBuf buf) {
+    public void toPacket(PacketByteBuf buf) {
         int size = this.size;
         buf.writeVarInt(size);
 
         for (int i = 0; i < size; ++i) {
-            buf.writeVarInt(this.idList.getRawId(this.get(i)));
+            buf.writeVarInt(this.idList.getRawId(this.getByIndex(i)));
         }
     }
 
@@ -152,39 +140,39 @@ public class LithiumHashPalette<T> implements Palette<T> {
         int size = PacketByteBuf.getVarIntLength(this.size);
 
         for (int i = 0; i < this.size; ++i) {
-            size += PacketByteBuf.getVarIntLength(this.idList.getRawId(this.get(i)));
+            size += PacketByteBuf.getVarIntLength(this.idList.getRawId(this.getByIndex(i)));
         }
 
         return size;
     }
 
     @Override
-    public int getSize() {
+    public int getIndexBits() {
         return this.size;
     }
 
     @Override
-    public Palette<T> copy() {
-        return new LithiumHashPalette<>(this.idList, this.resizeHandler, this.indexBits, this.entries.clone(), new Reference2IntOpenHashMap<>(this.table), this.size);
+    public void readNbt(NbtList list) {
+        this.clear();
+
+        for (int i = 0; i < list.size(); ++i) {
+            this.addEntry(this.elementDeserializer.apply(list.getCompound(i)));
+        }
+    }
+
+    public void toTag(NbtList list) {
+        for (int i = 0; i < this.size; ++i) {
+            list.add(this.elementSerializer.apply(this.getByIndex(i)));
+        }
+    }
+
+    public int getSize() {
+        return this.size;
     }
 
     private void clear() {
         Arrays.fill(this.entries, null);
         this.table.clear();
         this.size = 0;
-    }
-
-    public List<T> getElements() {
-        ImmutableList.Builder<T> builder = new ImmutableList.Builder<>();
-        for (T entry : this.entries) {
-            if (entry != null) {
-                builder.add(entry);
-            }
-        }
-        return builder.build();
-    }
-
-    public static <A> Palette<A> create(int bits, IndexedIterable<A> idList, PaletteResizeListener<A> listener, List<A> list) {
-        return new LithiumHashPalette<>(idList, bits, listener, list);
     }
 }

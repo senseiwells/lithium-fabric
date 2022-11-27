@@ -84,7 +84,6 @@
     "chunk.entity_class_groups.ServerWorldAccessor",
     "chunk.entity_class_groups.TypeFilterableListMixin",
     "chunk.no_locking.PalettedContainerMixin",
-    "chunk.no_validation.EmptyPaletteStorageMixin",
     "chunk.no_validation.PackedIntegerArrayMixin",
     "chunk.palette.PalettedContainerMixin",
     "chunk.serialization.PackedIntegerArrayMixin",
@@ -102,7 +101,6 @@
     "entity.collisions.fluid.EntityMixin",
     "entity.collisions.intersection.CollisionViewMixin",
     "entity.collisions.movement.EntityMixin",
-    "entity.collisions.suffocation.EntityMixin",
     "entity.collisions.unpushable_cramming.AbstractMinecartEntityMixin",
     "entity.collisions.unpushable_cramming.BoatEntityMixin",
     "entity.collisions.unpushable_cramming.EntityMixin",
@@ -189,8 +187,7 @@
     "world.inline_block_access.WorldMixin",
     "world.inline_height.WorldChunkMixin",
     "world.inline_height.WorldMixin",
-    "world.player_chunk_tick.ThreadedAnvilChunkStorageMixin",
-    "world.tick_scheduler.ChunkTickSchedulerMixin"
+    "world.player_chunk_tick.ThreadedAnvilChunkStorageMixin"
   ],
   "client": [
     "chunk.entity_class_groups.ClientEntityManagerAccessor",

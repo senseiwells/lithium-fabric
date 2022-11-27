@@ -1,5 +1,6 @@
 package me.jellysquid.mods.lithium.mixin.alloc.chunk_ticking;
 
+import com.google.common.collect.Iterators;
 import net.minecraft.server.world.ChunkHolder;
 import net.minecraft.server.world.ServerChunkManager;
 import org.spongepowered.asm.mixin.Mixin;
@@ -18,21 +19,22 @@ public class ServerChunkManagerMixin {
     @Redirect(
             method = "tickChunks()V",
             at = @At(
+                    remap = false,
                     value = "INVOKE",
-                    target = "Lcom/google/common/collect/Lists;newArrayListWithCapacity(I)Ljava/util/ArrayList;",
-                    remap = false
+                    target = "Lcom/google/common/collect/Lists;newArrayList(Ljava/lang/Iterable;)Ljava/util/ArrayList;"
             )
     )
-    private ArrayList<ChunkHolder> redirectChunksListClone(int initialArraySize) {
+    private ArrayList<ChunkHolder> redirectChunksListClone(Iterable<? extends ChunkHolder> elements) {
         ArrayList<ChunkHolder> list = this.cachedChunkList;
         list.clear(); // Ensure the list is empty before re-using it
-        list.ensureCapacity(initialArraySize);
+
+        Iterators.addAll(list, elements.iterator());
 
         return list;
     }
 
-    @Inject(method = "tick(Ljava/util/function/BooleanSupplier;Z)V", at = @At("HEAD"))
-    private void preTick(BooleanSupplier shouldKeepTicking, boolean tickChunks, CallbackInfo ci) {
+    @Inject(method = "tick(Ljava/util/function/BooleanSupplier;)V", at = @At("HEAD"))
+    private void preTick(BooleanSupplier shouldKeepTicking, CallbackInfo ci) {
         // Ensure references aren't leaked through this list
         this.cachedChunkList.clear();
     }

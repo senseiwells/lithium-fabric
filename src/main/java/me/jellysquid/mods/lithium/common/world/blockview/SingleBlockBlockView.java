@@ -16,6 +16,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BiPredicate;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 public record SingleBlockBlockView(BlockState state, BlockPos blockPos) implements BlockView, CollisionView {
     public static SingleBlockBlockView of(BlockState blockState, BlockPos blockPos) {
@@ -26,18 +29,16 @@ public record SingleBlockBlockView(BlockState state, BlockPos blockPos) implemen
     public BlockState getBlockState(BlockPos pos) {
         if (pos.equals(this.blockPos())) {
             return this.state();
-        } else {
-            throw SingleBlockViewException.INSTANCE;
         }
+        throw SingleBlockViewException.INSTANCE;
     }
 
     @Override
     public FluidState getFluidState(BlockPos pos) {
         if (pos.equals(this.blockPos())) {
             return this.state().getFluidState();
-        } else {
-            throw SingleBlockViewException.INSTANCE;
         }
+        throw SingleBlockViewException.INSTANCE;
     }
 
     @Nullable
@@ -68,17 +69,7 @@ public record SingleBlockBlockView(BlockState state, BlockPos blockPos) implemen
     }
 
     @Override
-    public boolean doesNotIntersectEntities(@Nullable Entity except, VoxelShape shape) {
-        throw SingleBlockViewException.INSTANCE;
-    }
-
-    @Override
     public boolean canPlace(BlockState state, BlockPos pos, ShapeContext context) {
-        throw SingleBlockViewException.INSTANCE;
-    }
-
-    @Override
-    public boolean doesNotIntersectEntities(Entity entity) {
         throw SingleBlockViewException.INSTANCE;
     }
 
@@ -98,22 +89,17 @@ public record SingleBlockBlockView(BlockState state, BlockPos blockPos) implemen
     }
 
     @Override
-    public List<VoxelShape> getEntityCollisions(@Nullable Entity entity, Box box) {
+    public Stream<VoxelShape> getEntityCollisions(@Nullable Entity entity, Box box, Predicate<Entity> predicate) {
         throw SingleBlockViewException.INSTANCE;
     }
 
     @Override
-    public Iterable<VoxelShape> getCollisions(@Nullable Entity entity, Box box) {
+    public Stream<VoxelShape> getCollisions(@Nullable Entity entity, Box box, Predicate<Entity> predicate) {
         throw SingleBlockViewException.INSTANCE;
     }
 
     @Override
-    public Iterable<VoxelShape> getBlockCollisions(@Nullable Entity entity, Box box) {
-        throw SingleBlockViewException.INSTANCE;
-    }
-
-    @Override
-    public boolean canCollide(@Nullable Entity entity, Box box) {
+    public Stream<VoxelShape> getBlockCollisions(@Nullable Entity entity, Box box, BiPredicate<BlockState, BlockPos> predicate) {
         throw SingleBlockViewException.INSTANCE;
     }
 

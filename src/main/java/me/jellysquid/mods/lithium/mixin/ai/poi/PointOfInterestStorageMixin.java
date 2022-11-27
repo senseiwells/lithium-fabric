@@ -28,7 +28,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 
-import java.nio.file.Path;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Optional;
 import java.util.Random;
@@ -46,8 +46,8 @@ public abstract class PointOfInterestStorageMixin extends SerializingRegionBased
     @Shadow
     public abstract Stream<PointOfInterest> getInSquare(Predicate<PointOfInterestType> typePredicate, BlockPos pos, int radius, PointOfInterestStorage.OccupationStatus occupationStatus);
 
-    public PointOfInterestStorageMixin(Path path, Function<Runnable, Codec<PointOfInterestSet>> codecFactory, Function<Runnable, PointOfInterestSet> factory, DataFixer dataFixer, DataFixTypes dataFixTypes, boolean dsync, HeightLimitView world) {
-        super(path, codecFactory, factory, dataFixer, dataFixTypes, dsync, world);
+    public PointOfInterestStorageMixin(File directory, Function<Runnable, Codec<PointOfInterestSet>> codecFactory, Function<Runnable, PointOfInterestSet> factory, DataFixer dataFixer, DataFixTypes dataFixTypes, boolean dsync, HeightLimitView world) {
+        super(directory, codecFactory, factory, dataFixer, dataFixTypes, dsync, world);
     }
 
     /**
@@ -124,7 +124,7 @@ public abstract class PointOfInterestStorageMixin extends SerializingRegionBased
     @Overwrite
     public Optional<BlockPos> getNearestPosition(Predicate<PointOfInterestType> predicate, BlockPos pos, int radius,
                                                  PointOfInterestStorage.OccupationStatus status) {
-        return this.getNearestPosition(predicate, null, pos, radius, status);
+        return this.method_34712(predicate, null, pos, radius, status);
     }
 
     /**
@@ -135,7 +135,7 @@ public abstract class PointOfInterestStorageMixin extends SerializingRegionBased
      * @author JellySquid, 2No2Name
      */
     @Overwrite
-    public Optional<BlockPos> getNearestPosition(Predicate<PointOfInterestType> predicate,
+    public Optional<BlockPos> method_34712(Predicate<PointOfInterestType> predicate,
                                                  Predicate<BlockPos> posPredicate, BlockPos pos, int radius,
                                                  PointOfInterestStorage.OccupationStatus status) {
         Stream<PointOfInterest> pointOfInterestStream = this.streamOutwards(pos, radius, status, true, false, predicate, posPredicate == null ? null : poi -> posPredicate.test(poi.getPos()));
